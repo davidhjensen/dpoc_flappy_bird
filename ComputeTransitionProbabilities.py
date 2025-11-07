@@ -54,14 +54,16 @@ def compute_transition_probabilities(C:Const) -> np.array:
                 # s - free distance 
                 #   - difference between the width minus 1 (for the bird) and
                 #     the sum of all distances minus 1 (for the shift of obstacles left)
-                s = (C.X - 1) - (sum(d) - 1)        
+                s = (C.X - 1) - (sum(d) - 1)    
 
-                # j - smallest index with no assigned obstacle at time k
+                # whether or not a new obstacle can spawn
+                can_spawn = s >= C.D_min    
+
+                # m_min - smallest index with no assigned obstacle at time k
                 try:
-                    j = d.index(0, 2)           # look for 0s starting at d2 since d1 doesn't matter for this
+                    m_min = d.index(0, 2)           # look for 0s starting at d2 since d1 doesn't matter for this
                 except:
-                    j = C.M + (s < C.D_min)     # if no zero is found, j = M if obstacle can spawn
-                                                # or j = C.M + 1 if an obstacle cannot spawn
+                    m_min = C.M                     # if no zero is found, j = M
 
 
             # WORK THORUGH SHORTCUTS IN ORDER (y, v, d1, d2, etc) with collision first
@@ -97,40 +99,42 @@ def compute_transition_probabilities(C:Const) -> np.array:
                         P[i,j,u] = 0
                         continue 
 
-                    # di - distance between obstacles for i(k) = 3, 4, ... , j - 1, for j: dj(k) == 0
+                    # di - distance between obstacles for i(k) = 3, 4, ... , m_min - 1, for m_min: dm_min(k) == 0
                     #    - indicies all must decrease by 1 from time k to k+1 for i(k) = 3, 4, ... , j - 1
                     #      For example, d4(k+1)should be d5(k)
-                    if d_n[2:j-1] != d[3:j]:
+                    if d_n[2:m_min-1] != d[3:m_min]:
+                        P[i,m_min,u] = 0
+                        continue
+
+                    # di - distance between obstacles for i(k) = m_min, for m_min: dm_min(k) == 0
+                    #    - (dm_min-1)(k+1) must either be in {0, s} if obstacle can spawn, or 0 if obstacle cannot
+                    if (can_spawn and d_n[m_min-1] not in (0, s)) or (not can_spawn and d_n[m_min-1] != 0):
                         P[i,j,u] = 0
                         continue
 
-                    # di - distance between obstacles for i(k) = j, for j: dj(k) == 0
-                    #    - d(j-1)(k+1) must either be 0 (no obstacle spawned) or s (obstacled spawned)
-                    if d_n[j-1] not in (0, s):
-                        P[i,j,u] = 0
-                        continue
-
-                    # di - distance between obstacles for i(k) = j + 1, j + 2, ... , M, for j: dj(k) == 0
+                    # di - distance between obstacles for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
                     #    - they all must be zero
-                    if sum(d_n[j:]) != 0:
+                    if sum(d_n[m_min:]) != 0:
                         P[i,j,u] = 0
                         continue
 
-                    # hi - height of gap for each obstacle for i(k) = 2, 3, ... , j - 1, for j: dj(k) == 0
-                    #    - indicies all must decrease by 1 from time k to k+1 for i(k) = 2, 3, ... , j - 1
+                    # hi - height of gap for each obstacle for i(k) = 2, 3, ... , m_min - 1, for m_min: dm_min(k) == 0
+                    #    - indicies all must decrease by 1 from time k to k+1 for i(k) = 2, 3, ... , m_min - 1
                     #      i.e. h4(k+1) should be h5(k)
-                    if h_n[1:j-1] != h[2:j]:
+                    if h_n[1:m_min-1] != h[2:m_min]:
                         P[i,j,u] = 0
                         continue
 
-                    # hi - height of gap for each obstacle for i(k) = j, for j: dj(k) == 0
-                    #    - the height can be anything in the set S_h beacuase an object
-                    #      could have spawned, so no restrictions
+                    # hi - height of gap for each obstacle for i(k) = m_min, for m_min: dm_min(k) == 0
+                    #    - the height must be default if no object can spawn
+                    if not can_spawn and h_n[m_min-1] != C.S_h[0]:
+                        P[i,j,u] = 0
+                        continue
 
-                    # hi - height of gap for each obstacle for i(k) = j + 1, j + 2, ... , M, for j: dj(k) == 0
+                    # hi - height of gap for each obstacle for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
                     #    - the height must be the default height
-                    tup_default = tuple((C.M - j)*[C.S_h[0]])   # a tuple of default heights with length M - j = d_n[j:]
-                    if d_n[j:] != tup_default:
+                    tup_default = tuple((C.M - m_min)*[C.S_h[0]])   # a tuple of default heights with length M - m_min = d_n[m_min:]
+                    if h_n[m_min:] != tup_default:
                         P[i,j,u] = 0
                         continue
                 
@@ -143,38 +147,42 @@ def compute_transition_probabilities(C:Const) -> np.array:
                         P[i,j,u] = 0
                         continue 
 
-                    # di - distance between obstacles for i(k) = 2, 3, ... , j - 1, for j: dj(k) == 0
+                    # di - distance between obstacles for i(k) = 2, 3, ... , m_min - 1, for m_min: dm_min(k) == 0
                     #    - distances must all be the same
-                    if d_n[2:j] != d[2:j]:
+                    if d_n[2:m_min] != d[2:m_min]:
                         P[i,j,u] = 0
                         continue
 
-                    # di - distance between obstacles for i(k) = j, for j: dj(k) == 0
-                    #    - dj(k+1) must either be 0 (no obstacle spawned) or s (obstacled spawned)
-                    if j != C.M and d_n[j] not in (0, s):
+                    # di - distance between obstacles for i(k) = m_min, for m_min: dm_min(k) == 0
+                    #    - dm_min(k+1) must either be in {0, s} if obstacle can spawn, or 0 if obstacle cannot
+                    if m_min != C.M and (
+                        (can_spawn and d_n[m_min] not in (0, s)) or
+                        (not can_spawn and d_n[m_min] != 0)):
                         P[i,j,u] = 0
                         continue
 
-                    # di - distance between obstacles for i(k) = j + 1, j + 2, ... , M, for j: dj(k) == 0
+                    # di - distance between obstacles for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
                     #    - they all must be zero
-                    if j != C.M and sum(d_n[j+1:]) != 0:
+                    if m_min != C.M and sum(d_n[m_min+1:]) != 0:
                         P[i,j,u] = 0
                         continue
 
-                    # hi - height of gap for each obstacle for i(k) = 1, 2, ... , j - 1, for j: dj(k) == 0
+                    # hi - height of gap for each obstacle for i(k) = 1, 2, ... , m_min - 1, for m_min: dm_min(k) == 0
                     #    - the heights must all stay the same
-                    if h_n[1:j] != h[1:j]:
+                    if h_n[1:m_min] != h[1:m_min]:
                         P[i,j,u] = 0
                         continue
 
-                    # hi - height of gap for each obstacle for i(k) = j, for j: dj(k) == 0
-                    #    - the height can be anything in the set S_h beacuase an object
-                    #      could have spawned, so no restrictions
+                    # hi - height of gap for each obstacle for i(k) = m_min, for m_min: dm_min(k) == 0
+                    #    - the height must be default if no object can spawn
+                    if not can_spawn and h_n[m_min] != C.S_h[0]:
+                        P[i,j,u] = 0
+                        continue
 
-                    # hi - height of gap for each obstacle for i(k) = j + 1, j + 2, ... , M, for j: dj(k) == 0
+                    # hi - height of gap for each obstacle for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
                     #    - the height must be the default height
-                    tup_default = tuple((C.M - j)*[C.S_h[0]])   # a tuple of default heights with length M - j = d_n[j:]
-                    if j != C.M and d_n[j+1:] != tup_default:
+                    tup_default = tuple((C.M - m_min)*[C.S_h[0]])   # a tuple of default heights with length M - m_min = d_n[m_min:]
+                    if m_min != C.M and h_n[m_min+1:] != tup_default:
                         P[i,j,u] = 0
                         continue
     
