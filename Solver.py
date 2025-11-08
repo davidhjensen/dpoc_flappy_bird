@@ -58,17 +58,18 @@ def solution(C: Const) -> tuple[np.array, np.array]:
     K, _, L = P.shape
     P_sparse = [csr_matrix(P[:, :, l]) for l in range(L)]
     alpha = 1.0        
-    epsilon = 1e-10
-    max_iter = 2000
+    epsilon = 1e-5
+    max_iter = 10000
 
     for it in range(max_iter):
-        J_new = np.full(K, np.inf)
+        J_new = np.full(K, 0)
         for l in range(L):
             expected_cost = Q[:, l] + alpha * (P_sparse[l].dot(J_opt))
             J_new = np.minimum(J_new, expected_cost)
 
         delta = np.max(np.abs(J_new - J_opt))
         if delta < epsilon:
+            print(f"breaking due to epsilon at {it}")
             break
         J_opt = J_new
 
