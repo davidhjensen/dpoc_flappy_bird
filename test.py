@@ -92,6 +92,7 @@ def run_test(test_nr: int) -> None:
 
     J_opt, u_opt = solution(C)
     if not np.allclose(J_opt, gold["J"], rtol=RTOL, atol=ATOL):
+        print(np.argwhere(np.isclose(J_opt, gold["J"]).__invert__() == 1))
         print("Wrong optimal cost")
         passed = False
     else:

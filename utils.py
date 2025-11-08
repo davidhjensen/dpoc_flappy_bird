@@ -19,20 +19,17 @@ Institute for Dynamic Systems and Control
 
 from Const import Const
 
-def spawn_probability(C: Const, s: int, w_spawn_obs) -> float:
+def spawn_probability(C: Const, s: int) -> float:
     """Distance-dependent spawn probability p_spawn(s).
     
     Args:
         C (Const): The constants describing the problem instance.
         s (int): Free distance, as defined in the assignment.
-        w_spawn_obs (int): The observed spawn behavior.
 
     Returns:
         float: The probability of the observed spawn occuring.
     """
-    p_spawn = max(min((s - C.D_min + 1) / (C.X - C.D_min), 1.0), 0.0)
-    p_nspawn = 1 - p_spawn
-    return p_spawn * w_spawn_obs + p_nspawn * (1 - w_spawn_obs)
+    return max(min((s - C.D_min + 1) / (C.X - C.D_min), 1.0), 0.0)
 
 def flap_probability(C: Const, u: int, w_flap_obs: int) -> float:
     """Input-dependent flap distubance probability p_flap(u).
