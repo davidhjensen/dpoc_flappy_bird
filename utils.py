@@ -19,17 +19,41 @@ Institute for Dynamic Systems and Control
 
 from Const import Const
 
-def spawn_probability(C: Const, s: int) -> float:
+def spawn_probability(C: Const, s: int, w_spawn_obs) -> float:
     """Distance-dependent spawn probability p_spawn(s).
     
     Args:
         C (Const): The constants describing the problem instance.
         s (int): Free distance, as defined in the assignment.
+        w_spawn_obs (int): The observed spawn behavior.
 
     Returns:
-        float: The spawn probability p_spawn(s).
+        float: The probability of the observed spawn occuring.
     """
-    return max(min((s - C.D_min + 1) / (C.X - C.D_min), 1.0), 0.0)
+    p_spawn = max(min((s - C.D_min + 1) / (C.X - C.D_min), 1.0), 0.0)
+    p_nspawn = 1 - p_spawn
+    return p_spawn * w_spawn_obs + p_nspawn * (1 - w_spawn_obs)
+
+def flap_probability(C: Const, u: int, w_flap_obs: int) -> float:
+    """Input-dependent flap distubance probability p_flap(u).
+
+    Args:
+        C (const): The constants describing the problem instance.
+        u (int): The input flap strength.
+        w_flap_obs (int): The observed disturbance.
+    
+    Returns:
+        float: The probability of the observed disturbance occuring.
+    """
+    if u == C.U_strong:
+        return 1 / (2*C.V_dev + 1)
+    elif u in (C.U_weak, C.U_no_flap) and w_flap_obs == 0:
+        return 1
+    elif u in (C.U_weak, C.U_no_flap) and w_flap_obs != 0:
+        return 0
+    else:
+        print(f"THIS IS BAD\nu: {u}\nw_flap_obs: {w_flap_obs}")
+        return 0
 
 def is_in_gap(C: Const, y: int, h1: int) -> bool:
     """Returns true if bird in gap.

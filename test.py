@@ -78,6 +78,7 @@ def run_test(test_nr: int) -> None:
         print(f"Row-sum min/max per action: min {mins}, max {maxs}")
 
     if not np.allclose(P, gold["P"], rtol=RTOL, atol=ATOL):
+        print(np.argwhere(np.isclose(P, gold["P"]).__invert__() == 1))
         print("Wrong transition probabilities")
         passed = False
     else:
