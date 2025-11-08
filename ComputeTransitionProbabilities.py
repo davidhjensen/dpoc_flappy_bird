@@ -41,14 +41,14 @@ def compute_transition_probabilities(C:Const) -> np.array:
                 # current state variables
                 y = state[0]                        # height
                 v = state[1]                        # velocity
-                d = (0, *state[2:C.M+2])            # distance to obstacle i (indexing MATCHES i: d1 is at di[1])
-                h = (0, *state[C.M+2:])             # height of gap i (indexing MATCHES i: h1 is at hi[1])
+                d = (0, *state[2:C.M+2])            # distance to obstacle i (indexing MATCHES i: d1 is at d[1])
+                h = (0, *state[C.M+2:])             # height of gap i (indexing MATCHES i: h1 is at h[1])
 
                 # next state variables
                 y_n = next_state[0]                 # height
                 v_n = next_state[1]                 # velocity
-                d_n = (0, *next_state[2:C.M+2])     # distance to obstacle i (indexing MATCHES i: d1 is at di[1])
-                h_n = (0, *next_state[C.M+2:])      # height of gap i (indexing MATCHES i: h1 is at hi[1])
+                d_n = (0, *next_state[2:C.M+2])     # distance to obstacle i (indexing MATCHES i: d1 is at d_n[1])
+                h_n = (0, *next_state[C.M+2:])      # height of gap i (indexing MATCHES i: h1 is at h_n[1])
 
                 # a few helpful variables that aren't in the state space
                 # s - free distance 
@@ -63,10 +63,11 @@ def compute_transition_probabilities(C:Const) -> np.array:
                 try:
                     m_min = d.index(0, 2)           # look for 0s starting at d2 since d1 doesn't matter for this
                 except:
-                    m_min = C.M                     # if no zero is found, j = M
+                    m_min = C.M                     # if no zero is found, m_min = M
 
 
             # WORK THORUGH SHORTCUTS IN ORDER (y, v, d1, d2, etc) with collision first
+            # NOTE: P is initialized to zeros, so continuing on the loop means the entry is "set" to zero
 
                 # Collision - set probability to 0
                 if is_collision(C, y, d[1], h[1]):
@@ -81,7 +82,7 @@ def compute_transition_probabilities(C:Const) -> np.array:
                     continue
 
                 # v - vertical velocity
-                #   - v(k+1) must be sum of current velocity (v) 
+                #   - v(k+1) must be in the range of current velocity plus input \pm deviation
                 #   - clipped into feasable range
                 v_min = (v + input - C.g) - C.V_dev
                 v_max = (v + input - C.g) + C.V_dev
@@ -100,14 +101,14 @@ def compute_transition_probabilities(C:Const) -> np.array:
                         continue 
 
                     # di - distance between obstacles for i(k) = 3, 4, ... , m_min - 1, for m_min: dm_min(k) == 0
-                    #    - indicies all must decrease by 1 from time k to k+1 for i(k) = 3, 4, ... , j - 1
+                    #    - indicies all must decrease by 1 from time k to k+1 for i(k) = 3, 4, ... , m_min - 1
                     #      For example, d4(k+1)should be d5(k)
                     if d_n[2:m_min-1] != d[3:m_min]:
                         P[i,m_min,u] = 0
                         continue
 
                     # di - distance between obstacles for i(k) = m_min, for m_min: dm_min(k) == 0
-                    #    - (dm_min-1)(k+1) must either be in {0, s} if obstacle can spawn, or 0 if obstacle cannot
+                    #    - d(m_min-1)(k+1) must either be in {0, s} if obstacle can spawn, or 0 if obstacle cannot
                     if (can_spawn and d_n[m_min-1] not in (0, s)) or (not can_spawn and d_n[m_min-1] != 0):
                         P[i,j,u] = 0
                         continue
