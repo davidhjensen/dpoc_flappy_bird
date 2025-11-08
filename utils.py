@@ -54,7 +54,7 @@ def flap_probability(C: Const, u: int, w_flap_obs: int) -> float:
     else:
         print(f"THIS IS BAD\nu: {u}\nw_flap_obs: {w_flap_obs}")
         return 0
-
+    
 def is_in_gap(C: Const, y: int, h1: int) -> bool:
     """Returns true if bird in gap.
     

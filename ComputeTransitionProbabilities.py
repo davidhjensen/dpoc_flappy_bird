@@ -34,181 +34,127 @@ def compute_transition_probabilities(C:Const) -> np.array:
     """
     P = np.zeros((C.K, C.K, C.L))
 
-    for i, state in enumerate(C.state_space):            
-        for u, input in enumerate(C.input_space):
-            for j, next_state in enumerate(C.state_space):
-    
-                # current state variables
-                y = state[0]                    # height
-                v = state[1]                    # velocity
-                d = state[2:C.M+2]              # distance to obstacle i (indexing OFFSET: d1 is at d[0])
-                h = state[C.M+2:]               # height of gap i (indexing OFFSET: h1 is at h[0])
+    # calculate possible velocity transitions
+    v_next_cache = {}
+    for v in C.S_v:
+        for u in C.input_space:
+            v_base = v + u - C.g
+            if u == C.U_strong:
+                v_pot = np.clip([v_base + v_dev for v_dev in C.W_v], -C.V_max, C.V_max)
+                unique, counts = np.unique(v_pot, return_counts=True)
+                probs = counts / len(C.W_v)             # store values and corrisponding probabilities
+            else:
+                unique = [np.clip(v_base, -C.V_max, C.V_max)]
+                probs = [1.0]
+            v_next_cache[(v,u)] = list(zip(unique, probs))
 
-                # next state variables
-                y_n = next_state[0]             # height
-                v_n = next_state[1]             # velocity
-                d_n = next_state[2:C.M+2]       # distance to obstacle i (indexing OFFSET: d1 is at d[0])
-                h_n = next_state[C.M+2:]        # height of gap i (indexing OFFSET: h1 is at h[0])
+    # calculate spawn probabilities for all s
+    pspawn = np.zeros(C.X + 1)
+    for s in range(C.X + 1):
+        if s <= C.D_min - 1:
+            pspawn[s] = 0.0
+        elif s >= C.X:
+            pspawn[s] = 1.0
+        else:
+            pspawn[s] = (s - (C.D_min - 1)) / (C.X - C.D_min)
 
-                # a few helpful variables that aren't in the state space
-                # s - free distance 
-                #   - difference between the width minus 1 (for the bird) and
-                #     the sum of all distances minus 1 (for the shift of obstacles left)
-                s = (C.X - 1) - (sum(d) - 1)    
+    # save spaces and variables
+    state_space = C.state_space
+    input_space = C.input_space
+    M = C.M
+    default_height = C.S_h[0]
+    n_heights = len(C.S_h)
 
-                # whether or not a new obstacle can spawn
-                can_spawn = s >= C.D_min    
+    # for every current state, input pair, build next states and calculate probability
+    for i, state in enumerate(C.state_space):
+        y, v = state[0], state[1]
+        d = list(state[2:M+2])
+        h = list(state[M+2:])
 
-                # m_min - smallest index with no assigned obstacle at time k
-                try:
-                    m_min = d.index(0, 1)           # look for 0s starting at d2 since d1 doesn't matter for this
-                except:
-                    m_min = C.M                     # if no zero is found, m_min = M
+        # skip rows for collision states
+        if is_collision(C, y, d[0], h[0]):
+            continue
 
-                # Collision - skip row, leaving all probabilities as 0
-                if is_collision(C, y, d[0], h[0]):
-                    continue
+        # free space
+        s = (C.X - 1) - (sum(d) - 1)
 
-            # WORK THORUGH SHORTCUTS IN ORDER (y, v, d1, d2, etc)
-            # NOTE: P is initialized to zeros, so continuing on the loop means the entry is "set" to zero,
-            # and we continue to look at the next possible next_state
+        # spawn check
+        can_spawn = s >= C.D_min
 
-                # y - vertical position
-                #   - y(k+1) must be sum of current position (y) and velocity (v)
-                #   - clipped into feasable range
-                if y_n != min(max(y + v, 0), C.Y - 1):
-                    continue
+        # set m_min to index or M if no 0 found
+        m_min = next((k for k in range(1,M) if d[k] == 0), M)
 
-                # v - vertical velocity
-                #   - v(k+1) must be in the range of current velocity plus input \pm deviation
-                #   - clipped into feasable range
-                v_min = (v + input - C.g) - C.V_dev
-                v_max = (v + input - C.g) + C.V_dev
-                v_potential = [
-                    np.clip((v + input - C.g) + w_flap, -C.V_max, C.V_max)
-                    for w_flap in C.W_v
-                ]                
-                if v_n not in v_potential:
-                    continue
+        for l, input in enumerate(C.input_space):
+            
+            # next position (deterministic)
+            y_next = min(max(y + v, 0), C.Y - 1)
 
-                # FOR d1(k) == 0:
+            # next velocity (random - set of potential velocities)
+            v_pot = v_next_cache[(v, input)] 
+
+            for v_n, p_flap_obs in v_pot:
+
+                # next distances and heights for passing case (intermediate version, before spawning)
                 if d[0] == 0:
+                    d_n_int = [d[1] - 1] + d[2:] + [0]
+                    h_n_int = h[1:] + [default_height]
+                
+                # next distances and heights for drifting case (intermediate version, before spawning)
+                else:
+                    d_n_int = [d[0] - 1] + d[1:]
+                    h_n_int = list(h)
 
-                    # d1 - distance to first obstacle
-                    #    - d1(k+1) must be shifted d2(k)
-                    if d_n[0] != d[1] - 1:
-                        continue 
-
-                    # di - distance between obstacles for i(k) = 3, 4, ... , m_min - 1, for m_min: dm_min(k) == 0
-                    #    - indicies all must decrease by 1 from time k to k+1 for i(k) = 3, 4, ... , m_min - 1
-                    #      For example, d4(k+1)should be d5(k)
-                    if d_n[1:m_min-1] != d[2:m_min]:
-                        continue
-
-                    # di - distance between obstacles for i(k) = m_min, for m_min: dm_min(k) == 0
-                    #    - d(m_min-1)(k+1) must either be in {0, s} if obstacle can spawn, or 0 if obstacle cannot
-                    if (can_spawn and d_n[m_min-1] not in (0, s)) or ((not can_spawn) and d_n[m_min-1] != 0):
-                        continue
-
-                    # di - distance between obstacles for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
-                    #    - they all must be zero
-                    if sum(d_n[m_min:]) != 0:
+                # update distances/heights with spawn
+                for w_spawn_obs in (0, 1):
+                    if not can_spawn and w_spawn_obs:
                         continue
                     
-                    # hi - height of gap for each obstacle for i(k) = 2, 3, ... , m_min - 1, for m_min: dm_min(k) == 0
-                    #    - indicies all must decrease by 1 from time k to k+1 for i(k) = 2, 3, ... , m_min - 1
-                    #      i.e. h4(k+1) should be h5(k)
-                    if h_n[0:m_min-1] != h[1:m_min]:
-                        continue
+                    # calculate probability the observed spawn behavior happened
+                    p_spawn_obs = pspawn[s] if w_spawn_obs else (1.0 - pspawn[s])
 
-                    # hi - height of gap for each obstacle for i(k) = m_min, for m_min: dm_min(k) == 0
-                    #    - the height must be default if no object can spawn
-                    if not can_spawn and h_n[m_min-1] != C.S_h[0]:
-                        continue
-
-                    # hi - height of gap for each obstacle for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
-                    #    - the height must be the default height
-                    tup_default = tuple((C.M - m_min)*[C.S_h[0]])   # a tuple of default heights with length M - m_min = d_n[m_min:]
-                    if h_n[m_min:] != tup_default:
+                    if p_spawn_obs == 0:
                         continue
                 
-                # FOR d1(k) != 0:
-                else:
+                    # heights of spawned obstacle
+                    if w_spawn_obs:
+                        p_height_obs = 1.0 / n_heights
+                        height_pot = C.S_h
+                    else:
+                        p_height_obs = 1.0
+                        height_pot = [default_height]
+                    
+                    for this_h in height_pot:
 
-                    # d1 - distance to first obstacle
-                    #    - d1(k+1) must be shifted d1(k)
-                    if d_n[0] != d[0] - 1:
-                        continue 
+                        # copy lists beceause we want to leave intermediate versions unchanged
+                        d_n = d_n_int.copy()
+                        h_n = h_n_int.copy()
 
-                    # di - distance between obstacles for i(k) = 2, 3, ... , m_min - 1, for m_min: dm_min(k) == 0
-                    #    - distances must all be the same
-                    if d_n[1:m_min] != d[1:m_min]:
-                        continue
+                        # spawn in shift case
+                        if d[0] == 0:
+                            if can_spawn and w_spawn_obs:
+                                d_n[m_min - 1] = s
+                                h_n[m_min - 1] = this_h
+                            else:
+                                d_n[m_min - 1] = 0
+                                h_n[m_min - 1] = default_height
 
-                    # di - distance between obstacles for i(k) = m_min, for m_min: dm_min(k) == 0
-                    #    - dm_min(k+1) must either be in {0, s} if obstacle can spawn, or 0 if obstacle cannot
-                    if m_min != C.M and (
-                        (can_spawn and d_n[m_min] not in (0, s)) or
-                        (not can_spawn and d_n[m_min] != 0)):
-                        continue
+                        # spawn in dift case
+                        else:
+                            if m_min != M:
+                                if can_spawn and w_spawn_obs:
+                                    d_n[m_min] = s
+                                    h_n[m_min] = this_h
+                                else:
+                                    d_n[m_min] = 0
+                                    h_n[m_min] = default_height
 
-                    # di - distance between obstacles for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
-                    #    - they all must be zero
-                    if m_min != C.M and sum(d_n[m_min+1:]) != 0:
-                        continue
+                        # build next state 
+                        next_state = (y_next, v_n, *d_n, *h_n)
+                        j = C.state_to_index(next_state)
+                        if j is None:
+                            continue
+                        
+                        # update probability
+                        P[i, j, l] = p_flap_obs * p_spawn_obs * p_height_obs
 
-                    # hi - height of gap for each obstacle for i(k) = 1, 2, ... , m_min - 1, for m_min: dm_min(k) == 0
-                    #    - the heights must all stay the same
-                    if h_n[:m_min] != h[:m_min]:
-                        continue
-
-                    # hi - height of gap for each obstacle for i(k) = m_min, for m_min: dm_min(k) == 0
-                    #    - the height must be default if no object can spawn
-                    if m_min != C.M and not can_spawn and h_n[m_min] != C.S_h[0]:
-                        continue
-
-                    # hi - height of gap for each obstacle for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
-                    #    - the height must be the default height
-                    tup_default = tuple((C.M - m_min - 1)*[C.S_h[0]])   # a tuple of default heights with length M - m_min = d_n[m_min:]
-                    if m_min != C.M and h_n[m_min+1:] != tup_default:
-                        continue
-
-            # CALCULATE NON-ZERO PROBABILITIES
-            # NOTE: the only random variables are:
-            #   - v (affected by w_flap)
-            #   - dm_min (affected by w_spawn)
-            #   - hm_min (affected by w_spawn)
-
-                # spawn probability (dependent on free space s)
-                w_spawn_obs = 0
-                if d[0] == 0 and d_n[m_min-1] != 0:                     # if obstacles are shifted, a spawn is indicated
-                    w_spawn_obs = 1                                     #   by the m_min index of d(k+1) being non-zero
-                if d[0] != 0 and m_min != C.M and d_n[m_min] != 0:      # if the obstacles aren't shifted, a spawn is 
-                    w_spawn_obs = 1                                     #   is indicated by there being an empty obstacle index
-                                                                        #   in d(k) and it's value being non-zero in d(k+1)
-                p_spawn_obs = spawn_probability(C, s, w_spawn_obs)
-
-                # height probability (equally distributed across all possible heights)
-                # if we cannot spawn, the probability of the observed height is 1 (we already filtered out infeasible cases for height)
-                p_height_obs = 1 / len(C.S_h) * w_spawn_obs + (1 - w_spawn_obs)
-
-                # flap probability
-                if input == C.U_strong:
-                    count = sum(v_n == v_val for v_val in v_potential)  # number of disturbances that lead to observed velocity
-                    p_flap_obs = count / (2 * C.V_dev + 1)              # probability
-                else:
-                    v_expected = np.clip((v + input - C.g), -C.V_max, C.V_max)
-                    p_flap_obs = 1.0 if v_n == v_expected else 0.0  
-
-                P[i, j, u] = p_spawn_obs * p_height_obs * p_flap_obs
-
-            
-                # if state == (2, 1, 5, 0, 4, 0):
-                #     print("Values:\ty\tv\td\th")
-                #     print(f"Cur:\t{y}\t{v}\t{d}\t{h}")
-                #     print(f"Next:\t{y_n}\t{v_n}\t{d_n}\t{h_n}")
-                #     print(f"Vdev: {C.V_dev}")
-                #     print(f"Input: {input} | pspawn: {p_spawn_obs} | pheight: {p_height_obs} | pflap: {p_flap_obs}\n")
-
-    
     return P
