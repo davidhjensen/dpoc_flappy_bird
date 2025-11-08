@@ -71,14 +71,12 @@ def compute_transition_probabilities(C:Const) -> np.array:
 
                 # Collision - set probability to 0
                 if is_collision(C, y, d[1], h[1]):
-                    P[i,j,u] = 0
                     continue
 
                 # y - vertical position
                 #   - y(k+1) must be sum of current position (y) and velocity (v)
                 #   - clipped into feasable range
                 if y_n != min(max(y + v, 0), C.Y - 1):
-                    P[i,j,u] = 0
                     continue
 
                 # v - vertical velocity
@@ -88,7 +86,6 @@ def compute_transition_probabilities(C:Const) -> np.array:
                 v_max = (v + input - C.g) + C.V_dev
                 v_potential = range(v_min, v_max + 1)
                 if v_n not in v_potential:
-                    P[i,j,u] = 0
                     continue
 
                 # FOR d1(k) == 0:
@@ -97,46 +94,39 @@ def compute_transition_probabilities(C:Const) -> np.array:
                     # d1 - distance to first obstacle
                     #    - d1(k+1) must be shifted d2(k)
                     if d_n[1] != d[2] - 1:
-                        P[i,j,u] = 0
                         continue 
 
                     # di - distance between obstacles for i(k) = 3, 4, ... , m_min - 1, for m_min: dm_min(k) == 0
                     #    - indicies all must decrease by 1 from time k to k+1 for i(k) = 3, 4, ... , m_min - 1
                     #      For example, d4(k+1)should be d5(k)
                     if d_n[2:m_min-1] != d[3:m_min]:
-                        P[i,m_min,u] = 0
                         continue
 
                     # di - distance between obstacles for i(k) = m_min, for m_min: dm_min(k) == 0
                     #    - d(m_min-1)(k+1) must either be in {0, s} if obstacle can spawn, or 0 if obstacle cannot
                     if (can_spawn and d_n[m_min-1] not in (0, s)) or (not can_spawn and d_n[m_min-1] != 0):
-                        P[i,j,u] = 0
                         continue
 
                     # di - distance between obstacles for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
                     #    - they all must be zero
                     if sum(d_n[m_min:]) != 0:
-                        P[i,j,u] = 0
                         continue
 
                     # hi - height of gap for each obstacle for i(k) = 2, 3, ... , m_min - 1, for m_min: dm_min(k) == 0
                     #    - indicies all must decrease by 1 from time k to k+1 for i(k) = 2, 3, ... , m_min - 1
                     #      i.e. h4(k+1) should be h5(k)
                     if h_n[1:m_min-1] != h[2:m_min]:
-                        P[i,j,u] = 0
                         continue
 
                     # hi - height of gap for each obstacle for i(k) = m_min, for m_min: dm_min(k) == 0
                     #    - the height must be default if no object can spawn
                     if not can_spawn and h_n[m_min-1] != C.S_h[0]:
-                        P[i,j,u] = 0
                         continue
 
                     # hi - height of gap for each obstacle for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
                     #    - the height must be the default height
                     tup_default = tuple((C.M - m_min)*[C.S_h[0]])   # a tuple of default heights with length M - m_min = d_n[m_min:]
                     if h_n[m_min:] != tup_default:
-                        P[i,j,u] = 0
                         continue
                 
                 # FOR d1(k) != 0:
@@ -145,13 +135,11 @@ def compute_transition_probabilities(C:Const) -> np.array:
                     # d1 - distance to first obstacle
                     #    - d1(k+1) must be shifted d1(k)
                     if d_n[1] != d[1] - 1:
-                        P[i,j,u] = 0
                         continue 
 
                     # di - distance between obstacles for i(k) = 2, 3, ... , m_min - 1, for m_min: dm_min(k) == 0
                     #    - distances must all be the same
                     if d_n[2:m_min] != d[2:m_min]:
-                        P[i,j,u] = 0
                         continue
 
                     # di - distance between obstacles for i(k) = m_min, for m_min: dm_min(k) == 0
@@ -159,32 +147,27 @@ def compute_transition_probabilities(C:Const) -> np.array:
                     if m_min != C.M and (
                         (can_spawn and d_n[m_min] not in (0, s)) or
                         (not can_spawn and d_n[m_min] != 0)):
-                        P[i,j,u] = 0
                         continue
 
                     # di - distance between obstacles for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
                     #    - they all must be zero
                     if m_min != C.M and sum(d_n[m_min+1:]) != 0:
-                        P[i,j,u] = 0
                         continue
 
                     # hi - height of gap for each obstacle for i(k) = 1, 2, ... , m_min - 1, for m_min: dm_min(k) == 0
                     #    - the heights must all stay the same
                     if h_n[1:m_min] != h[1:m_min]:
-                        P[i,j,u] = 0
                         continue
 
                     # hi - height of gap for each obstacle for i(k) = m_min, for m_min: dm_min(k) == 0
                     #    - the height must be default if no object can spawn
                     if not can_spawn and h_n[m_min] != C.S_h[0]:
-                        P[i,j,u] = 0
                         continue
 
                     # hi - height of gap for each obstacle for i(k) = m_min + 1, m_min + 2, ... , M, for m_min: dm_min(k) == 0
                     #    - the height must be the default height
                     tup_default = tuple((C.M - m_min)*[C.S_h[0]])   # a tuple of default heights with length M - m_min = d_n[m_min:]
                     if m_min != C.M and h_n[m_min+1:] != tup_default:
-                        P[i,j,u] = 0
                         continue
     
     return P
