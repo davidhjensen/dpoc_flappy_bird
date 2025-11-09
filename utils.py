@@ -27,10 +27,31 @@ def spawn_probability(C: Const, s: int) -> float:
         s (int): Free distance, as defined in the assignment.
 
     Returns:
-        float: The spawn probability p_spawn(s).
+        float: The probability of the observed spawn occuring.
     """
     return max(min((s - C.D_min + 1) / (C.X - C.D_min), 1.0), 0.0)
 
+def flap_probability(C: Const, u: int, w_flap_obs: int) -> float:
+    """Input-dependent flap distubance probability p_flap(u).
+
+    Args:
+        C (const): The constants describing the problem instance.
+        u (int): The input flap strength.
+        w_flap_obs (int): The observed disturbance.
+    
+    Returns:
+        float: The probability of the observed disturbance occuring.
+    """
+    if u == C.U_strong:
+        return 1 / (2*C.V_dev + 1)
+    elif u in (C.U_weak, C.U_no_flap) and w_flap_obs == 0:
+        return 1
+    elif u in (C.U_weak, C.U_no_flap) and w_flap_obs != 0:
+        return 0
+    else:
+        print(f"THIS IS BAD\nu: {u}\nw_flap_obs: {w_flap_obs}")
+        return 0
+    
 def is_in_gap(C: Const, y: int, h1: int) -> bool:
     """Returns true if bird in gap.
     
