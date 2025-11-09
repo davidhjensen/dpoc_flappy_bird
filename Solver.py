@@ -59,9 +59,17 @@ def solution(C: Const) -> tuple[np.array, np.array]:
     P_sparse = [csr_matrix(P[:, :, l]) for l in range(L)]
     alpha = 1.0        
     epsilon = 1e-5
-    max_iter = 10000
+    max_iter = 1e5
+    cycle_size = 500
+    max_iter_inner = int(max_iter / cycle_size)
 
-    for it in range(max_iter):
+    for cycle in range(cycle_size):
+        for it in range(max_iter_inner):
+            for l in range(L):
+                # Gauss-Seidel
+                expected_cost = Q[:, l] + alpha * (P_sparse[l].dot(J_opt))
+                J_opt = np.minimum(J_opt, expected_cost)
+
         J_new = np.full(K, 0)
         for l in range(L):
             expected_cost = Q[:, l] + alpha * (P_sparse[l].dot(J_opt))
@@ -69,14 +77,15 @@ def solution(C: Const) -> tuple[np.array, np.array]:
 
         delta = np.max(np.abs(J_new - J_opt))
         if delta < epsilon:
-            print(f"breaking due to epsilon at {it}")
+            print(f"breaking due to epsilon after {(cycle+1)*max_iter_inner} iterations")
+            J_opt = J_new
             break
-        J_opt = J_new
 
     best_cost = np.full(K, np.inf)
     best_action = np.zeros(K, dtype=int)
     for l in range(L):
         cost_l = Q[:, l] + alpha * (P_sparse[l].dot(J_opt))
+        #print(f"State 85: cost for u={C.input_space[l]} is {cost_l[85]}")
         mask = cost_l < best_cost
         best_cost[mask] = cost_l[mask]
         best_action[mask] = l

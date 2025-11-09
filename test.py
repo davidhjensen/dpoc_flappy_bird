@@ -101,6 +101,9 @@ def run_test(test_nr: int) -> None:
     if "u" in gold.files:
         if not np.array_equal(u_opt, gold["u"]):
             print("Policy differs from golden (may be OK if ties exist)")
+            diff = np.argwhere(np.isclose(u_opt, gold["u"]).__invert__() == 1)
+            for i in diff:
+                print(f"State\tgtCost\t\tusCost\t\tgtU\tusU\n{i}\t{gold['J'][i]}\t{J_opt[i]}\t{gold['u'][i]}\t{u_opt[i]}")
         else:
             print("Policy matches golden")
 
