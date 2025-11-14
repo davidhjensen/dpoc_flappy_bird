@@ -49,9 +49,9 @@ def main(use_solution_if_exist=True) -> None:
             u_opt = None
     
     if u_opt == None: 
-        start_t = time.perf_counter()
         # Build P and Q
         print("Computing transition probabilities P ...")
+        start_t = time.perf_counter()
         P = compute_transition_probabilities(C)
         trans_prob_t = time.perf_counter()
         print(f"P shape: {P.shape}")
