@@ -62,6 +62,7 @@ def solution(C: Const) -> tuple[np.array, np.array]:
     max_iter = 1e5
     cycle_size = 500
     max_iter_inner = int(max_iter / cycle_size)
+    J_new = np.full(K, 0)
 
     for cycle in range(cycle_size):
         for it in range(max_iter_inner):
@@ -70,7 +71,6 @@ def solution(C: Const) -> tuple[np.array, np.array]:
                 expected_cost = Q[:, l] + alpha * (P_sparse[l].dot(J_opt))
                 J_opt = np.minimum(J_opt, expected_cost)
 
-        J_new = np.full(K, 0)
         for l in range(L):
             expected_cost = Q[:, l] + alpha * (P_sparse[l].dot(J_opt))
             J_new = np.minimum(J_new, expected_cost)
