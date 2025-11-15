@@ -49,16 +49,13 @@ def main(use_solution_if_exist=True) -> None:
             u_opt = None
     
     if u_opt == None: 
-        start_t = time.perf_counter()
         # Build P and Q
         print("Computing transition probabilities P ...")
         P = compute_transition_probabilities(C)
-        trans_prob_t = time.perf_counter()
         print(f"P shape: {P.shape}")
 
         print("Computing expected stage costs Q ...")
         Q = compute_expected_stage_cost(C)
-        stage_t = time.perf_counter()
         print(f"Q shape: {Q.shape}")
         
         # Solve for optimal cost and policy
@@ -66,10 +63,7 @@ def main(use_solution_if_exist=True) -> None:
         J_opt, u_opt = solution(C)
         print("Solution obtained.")
         print("J_opt (min/max):", float(np.min(J_opt)), float(np.max(J_opt)))
-        end = time.perf_counter()
     
-        print(f"total: {(end - start_t)}\ntrans: {trans_prob_t-start_t}\nstage: {stage_t-trans_prob_t}\nsolve: {end - stage_t}")
-
     # Run simulation
     simulation.run_simulation(C, policy=u_opt)
 

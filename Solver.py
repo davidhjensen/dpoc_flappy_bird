@@ -21,6 +21,7 @@ from Const import Const
 from ComputeExpectedStageCosts import compute_expected_stage_cost
 from ComputeTransitionProbabilities import compute_transition_probabilities
 from scipy.sparse import csr_matrix
+import time
 
 
 def solution(C: Const) -> tuple[np.array, np.array]:
@@ -50,8 +51,11 @@ def solution(C: Const) -> tuple[np.array, np.array]:
     
     # TODO: implement Value Iteration, Policy Iteration, Linear Programming 
     # or a combination of these
+    start_t = time.perf_counter()
     P = compute_transition_probabilities(C)
+    p_t = time.perf_counter()
     Q = compute_expected_stage_cost(C)
+    q_t = time.perf_counter()
     J_opt = np.zeros(C.K)
     u_opt = np.zeros(C.K, dtype=int)
 
@@ -92,5 +96,8 @@ def solution(C: Const) -> tuple[np.array, np.array]:
 
     u_opt = np.array([C.input_space[a] for a in best_action])
 
+    end_t = time.perf_counter()
+    
+    print(f"P: {p_t-start_t}\nQe: {q_t-p_t}\nSolve: {end_t - q_t}\nTotal: {(end_t - start_t)}\n")
 
     return J_opt, u_opt
